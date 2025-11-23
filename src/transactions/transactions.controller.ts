@@ -1,58 +1,83 @@
-//apps/backend/src/transactions/transactions.controller.ts
+// src/transactions/transactions.controller.ts
 import {
-  Controller,
-  Post,
-  Get,
-  Patch,
-  Param,
   Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
+import type { Request } from 'express';
+
 import { TransactionsService } from './transactions.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionStatusDto } from './dto/update-transaction-status.dto';
-
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { GetUser } from '../auth/get-user.decorator';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
+import type { AuthUserPayload } from '../auth/types/auth-user-payload.type';
 
+@UseGuards(JwtAuthGuard)
 @Controller('transactions')
 export class TransactionsController {
-  constructor(private readonly service: TransactionsService) {}
+  constructor(private readonly transactionsService: TransactionsService) {}
 
-  @UseGuards(JwtAuthGuard)
+  // ----- USER -----
+
   @Post()
-  create(@GetUser('userId') userId: string, @Body() dto: CreateTransactionDto) {
-    return this.service.create(userId, dto);
+  async create(@Req() req: Request, @Body() dto: CreateTransactionDto) {
+    const user = req.user as AuthUserPayload | undefined;
+    if (!user?.sub) {
+      throw new ForbiddenException('Not authenticated');
+    }
+
+    return this.transactionsService.create(user.sub, dto);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get()
-  findAllForUser(@GetUser('userId') userId: string) {
-    return this.service.findAllForUser(userId);
+  async findMine(@Req() req: Request) {
+    const user = req.user as AuthUserPayload | undefined;
+    if (!user?.sub) {
+      throw new ForbiddenException('Not authenticated');
+    }
+
+    return this.transactionsService.findForUser(user.sub);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get(':id')
-  findOne(@GetUser('userId') userId: string, @Param('id') id: string) {
-    return this.service.findOneForUser(userId, id);
+  async findOne(@Req() req: Request, @Param('id') id: string) {
+    const user = req.user as AuthUserPayload | undefined;
+    if (!user?.sub) {
+      throw new ForbiddenException('Not authenticated');
+    }
+
+    return this.transactionsService.findOneForUser(id, user.sub);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  // ----- ADMIN -----
+
   @Get('admin/all')
-  adminFindAll() {
-    return this.service.adminFindAll();
+  async adminFindAll(@Req() req: Request) {
+    const user = req.user as AuthUserPayload | undefined;
+    if (user?.role !== 'ADMIN') {
+      throw new ForbiddenException('Admin only');
+    }
+
+    return this.transactionsService.adminFindAll();
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
   @Patch('admin/status/:id')
-  adminUpdateStatus(
+  async adminChangeStatus(
+    @Req() req: Request,
     @Param('id') id: string,
     @Body() dto: UpdateTransactionStatusDto,
   ) {
-    return this.service.adminUpdateStatus(id, dto);
+    const user = req.user as AuthUserPayload | undefined;
+    if (user?.role !== 'ADMIN') {
+      throw new ForbiddenException('Admin only');
+    }
+
+    return this.transactionsService.adminUpdateStatus(id, dto);
   }
 }

@@ -1,77 +1,45 @@
+// src/beneficiaries/beneficiaries.controller.ts
 import {
   Body,
   Controller,
-  Delete,
   Get,
-  Param,
-  Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
+
 import { BeneficiariesService } from './beneficiaries.service';
 import { CreateBeneficiaryDto } from './dto/create-beneficiary.dto';
-import { UpdateBeneficiaryDto } from './dto/update-beneficiary.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { GetUser } from '../auth/get-user.decorator';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
+import type { AuthUserPayload } from '../auth/types/auth-user-payload.type';
 
+@UseGuards(JwtAuthGuard)
 @Controller('beneficiaries')
 export class BeneficiariesController {
-  constructor(private readonly service: BeneficiariesService) {}
+  constructor(
+    private readonly beneficiariesService: BeneficiariesService,
+  ) {}
 
-  // USER: create
-  @UseGuards(JwtAuthGuard)
   @Post()
-  create(@GetUser('userId') userId: string, @Body() dto: CreateBeneficiaryDto) {
-    return this.service.create(userId, dto);
+  async create(@Req() req: Request, @Body() dto: CreateBeneficiaryDto) {
+    const user = req.user as AuthUserPayload | undefined;
+
+    if (!user?.sub) {
+      throw new Error('Missing authenticated user in request');
+    }
+
+    return this.beneficiariesService.create(user.sub, dto);
   }
 
-  // USER: list own
-  @UseGuards(JwtAuthGuard)
   @Get()
-  findAllForUser(@GetUser('userId') userId: string) {
-    return this.service.findAllForUser(userId);
-  }
+  async findAll(@Req() req: Request) {
+    const user = req.user as AuthUserPayload | undefined;
 
-  // USER: get one
-  @UseGuards(JwtAuthGuard)
-  @Get(':id')
-  findOneForUser(@GetUser('userId') userId: string, @Param('id') id: string) {
-    return this.service.findOneForUser(userId, id);
-  }
+    if (!user?.sub) {
+      throw new Error('Missing authenticated user in request');
+    }
 
-  // USER: update
-  @UseGuards(JwtAuthGuard)
-  @Patch(':id')
-  updateForUser(
-    @GetUser('userId') userId: string,
-    @Param('id') id: string,
-    @Body() dto: UpdateBeneficiaryDto,
-  ) {
-    return this.service.updateForUser(userId, id, dto);
-  }
-
-  // USER: delete
-  @UseGuards(JwtAuthGuard)
-  @Delete(':id')
-  removeForUser(@GetUser('userId') userId: string, @Param('id') id: string) {
-    return this.service.removeForUser(userId, id);
-  }
-
-  // ADMIN: list all
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
-  @Get('admin/all')
-  adminFindAll() {
-    return this.service.adminFindAll();
-  }
-
-  // ADMIN: delete any
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
-  @Delete('admin/:id')
-  adminRemove(@Param('id') id: string) {
-    return this.service.adminRemove(id);
+    return this.beneficiariesService.findAllForUser(user.sub);
   }
 }

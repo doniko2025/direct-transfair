@@ -1,14 +1,17 @@
-//apps/backend/src/transactions/transactions.module.ts
+// src/transactions/transactions.module.ts
 import { Module } from '@nestjs/common';
-import { TransactionsService } from './transactions.service';
-import { TransactionsController } from './transactions.controller';
+
 import { PrismaService } from '../prisma/prisma.service';
-import { UsersModule } from '../users/users.module';
-import { BeneficiariesModule } from '../beneficiaries/beneficiaries.module';
+import { TransactionsController } from './transactions.controller';
+import { TransactionsService } from './transactions.service';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [UsersModule, BeneficiariesModule],
+  imports: [
+    AuthModule, // 👈 idem pour les routes /transactions
+  ],
   controllers: [TransactionsController],
   providers: [TransactionsService, PrismaService],
+  exports: [TransactionsService],
 })
 export class TransactionsModule {}

@@ -1,25 +1,29 @@
-//apps/backend/src/users/users.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
+// apps/backend/src/users/users.service.ts
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { User } from '@prisma/client';
+import type { User } from '@prisma/client';
+import type { UserRole } from '../auth/dto/register.dto';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findByEmail(email: string): Promise<User | null> {
+  findByEmail(email: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { email } });
   }
 
-  async findById(id: string): Promise<User> {
-    const user = await this.prisma.user.findUnique({ where: { id } });
-    if (!user) throw new NotFoundException('User not found');
-    return user;
+  findById(id: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { id } });
   }
 
-  async create(email: string, passwordHash: string): Promise<User> {
+  // 👇 important : on accepte le rôle
+  create(email: string, passwordHash: string, role: UserRole): Promise<User> {
     return this.prisma.user.create({
-      data: { email, password: passwordHash },
+      data: {
+        email,
+        password: passwordHash,
+        role,
+      },
     });
   }
 }

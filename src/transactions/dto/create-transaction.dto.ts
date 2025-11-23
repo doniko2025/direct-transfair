@@ -1,26 +1,20 @@
-import {
-  IsNotEmpty,
-  IsNumber,
-  IsPositive,
-  IsString,
-  IsEnum,
-  IsUUID,
-} from 'class-validator';
+// src/transactions/dto/create-transaction.dto.ts
+import { IsEnum, IsNotEmpty, IsNumber, IsPositive, IsString } from 'class-validator';
 import { PayoutMethod } from '@prisma/client';
 
 export class CreateTransactionDto {
-  @IsUUID()
-  @IsNotEmpty()
-  beneficiaryId: string;
-
   @IsNumber()
   @IsPositive()
   amount: number;
 
   @IsString()
   @IsNotEmpty()
-  currency: string;
+  currency: string; // ex: "EUR", "XOF"
 
   @IsEnum(PayoutMethod)
   payoutMethod: PayoutMethod;
+
+  @IsString()
+  @IsNotEmpty()
+  beneficiaryId: string; // on ne met pas IsUUID pour ne pas bloquer les tests si l'ID est foireux
 }

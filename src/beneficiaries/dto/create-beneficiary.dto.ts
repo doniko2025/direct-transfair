@@ -1,17 +1,18 @@
+// src/beneficiaries/dto/create-beneficiary.dto.ts
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateBeneficiaryDto {
   @IsString()
   @IsNotEmpty()
-  fullName!: string;
+  fullName: string;
 
   @IsString()
   @IsNotEmpty()
-  country!: string;
+  country: string;
 
   @IsString()
   @IsNotEmpty()
-  city!: string;
+  city: string;
 
   @IsString()
   @IsOptional()

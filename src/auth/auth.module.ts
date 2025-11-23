@@ -12,6 +12,8 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Module({
   imports: [
+    // pour que ConfigService fonctionne dans useFactory
+    ConfigModule,
     PassportModule,
     UsersModule,
     JwtModule.registerAsync({
@@ -25,6 +27,10 @@ import { JwtAuthGuard } from './jwt-auth.guard';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, JwtAuthGuard],
-  exports: [AuthService],
+  exports: [
+    AuthService,
+    JwtAuthGuard, // 👈 on exporte le guard
+    JwtModule, // 👈 et le JwtModule (donc JwtService) pour les autres modules
+  ],
 })
 export class AuthModule {}

@@ -77,3 +77,8 @@ enum PayoutMethod {
   MOBILE_MONEY
   WALLET
 }
+
+//npx prisma format
+//npx prisma validate
+//npx prisma migrate reset
+//px prisma generate

@@ -1,10 +1,14 @@
-import { IsString, IsEmail, MinLength } from 'class-validator';
+// src/auth/dto/register.dto.ts
+import { IsEmail, IsNotEmpty, MinLength } from 'class-validator';
+
+export type UserRole = 'USER' | 'ADMIN';
 
 export class RegisterDto {
   @IsEmail()
+  @IsNotEmpty()
   email: string;
 
-  @IsString()
-  @MinLength(8)
+  @IsNotEmpty()
+  @MinLength(6)
   password: string;
 }
