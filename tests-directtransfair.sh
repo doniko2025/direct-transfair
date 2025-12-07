@@ -131,3 +131,7 @@ echo "$ADMIN_CHANGE"
 echo ""
 
 echo "===== FIN DES TESTS ====="
+#./tests-directtransfair.sh
+#cd/c/dev/DirectTransfair/apps/backend
+#cd apps/direct-transfair-mobile
+#cd /c/dev/DirectTransfair
