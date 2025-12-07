@@ -1,17 +1,18 @@
-// apps/backend/src/beneficiaries/beneficiaries.module.ts
+// src/beneficiaries/beneficiaries.module.ts
 import { Module } from '@nestjs/common';
 
-import { BeneficiariesService } from './beneficiaries.service';
-import { BeneficiariesController } from './beneficiaries.controller';
-import { PrismaService } from '../prisma/prisma.service';
 import { AuthModule } from '../auth/auth.module';
+import { PrismaService } from '../prisma/prisma.service';
+import { BeneficiariesController } from './beneficiaries.controller';
+import { BeneficiariesService } from './beneficiaries.service';
 
 @Module({
-  imports: [
-    AuthModule, // 👈 pour avoir accès à JwtAuthGuard + JwtService
-  ],
+  imports: [AuthModule],
   controllers: [BeneficiariesController],
-  providers: [BeneficiariesService, PrismaService],
+  providers: [
+    BeneficiariesService,
+    PrismaService,
+  ],
   exports: [BeneficiariesService],
 })
 export class BeneficiariesModule {}

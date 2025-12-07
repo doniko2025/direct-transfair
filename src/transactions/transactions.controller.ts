@@ -21,7 +21,9 @@ import type { AuthUserPayload } from '../auth/types/auth-user-payload.type';
 @UseGuards(JwtAuthGuard)
 @Controller('transactions')
 export class TransactionsController {
-  constructor(private readonly transactionsService: TransactionsService) {}
+  constructor(
+    private readonly transactionsService: TransactionsService,
+  ) {}
 
   // ----- USER -----
 
@@ -64,7 +66,7 @@ export class TransactionsController {
       throw new ForbiddenException('Admin only');
     }
 
-    return this.transactionsService.adminFindAll();
+    return this.transactionsService.adminFindAllForAdmin(user.sub);
   }
 
   @Patch('admin/status/:id')
@@ -78,6 +80,10 @@ export class TransactionsController {
       throw new ForbiddenException('Admin only');
     }
 
-    return this.transactionsService.adminUpdateStatus(id, dto);
+    return this.transactionsService.adminUpdateStatusForAdmin(
+      user.sub,
+      id,
+      dto,
+    );
   }
 }

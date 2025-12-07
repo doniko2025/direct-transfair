@@ -2,23 +2,28 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
-async function bootstrap(): Promise<void> {
+async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-    }),
-  );
+  // 🔹 DTO validation
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
 
-  const port = Number(process.env.PORT) || 3000;
+  // 🔹 Swagger config
+  const config = new DocumentBuilder()
+    .setTitle("Direct Transf'air API")
+    .setDescription('Documentation officielle du backend Direct Transf’air')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
 
-  await app.listen(port);
-  console.log(`🚀 Backend ready on http://localhost:${port}`);
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('swagger', app, document);
+
+  await app.listen(3000);
+
+  console.log('🚀 Backend running: http://localhost:3000');
+  console.log('📘 Swagger: http://localhost:3000/swagger');
 }
-
-// Obligatoire pour ESLint : catcher les erreurs
-bootstrap().catch((err) => {
-  console.error('❌ Error starting NestJS backend:', err);
-});
+bootstrap();

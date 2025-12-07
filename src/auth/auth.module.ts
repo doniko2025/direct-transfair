@@ -7,15 +7,19 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
+
 import { UsersModule } from '../users/users.module';
-import { JwtAuthGuard } from './jwt-auth.guard';
+import { TenantsModule } from '../tenants/tenants.module';
+import { PrismaModule } from '../prisma/prisma.module';  // 🔥 AJOUT ICI
 
 @Module({
   imports: [
-    // pour que ConfigService fonctionne dans useFactory
-    ConfigModule,
     PassportModule,
     UsersModule,
+    TenantsModule,
+    ConfigModule,
+    PrismaModule,   // ✅ OBLIGATOIRE POUR INJECTER PrismaService
+
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -25,12 +29,18 @@ import { JwtAuthGuard } from './jwt-auth.guard';
       }),
     }),
   ],
+
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard],
+
+  providers: [
+    AuthService,
+    JwtStrategy,
+  ],
+
   exports: [
     AuthService,
-    JwtAuthGuard, // 👈 on exporte le guard
-    JwtModule, // 👈 et le JwtModule (donc JwtService) pour les autres modules
+    JwtModule,
+    PassportModule,
   ],
 })
 export class AuthModule {}
