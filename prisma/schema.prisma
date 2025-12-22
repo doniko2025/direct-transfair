@@ -1,7 +1,6 @@
 // ==========================================================
 //  PRISMA SCHEMA — DIRECT TRANSF'AIR
-//  Multi-tenant (Client), Users, Beneficiaries, Transactions
-//  + FULL PAYMENT SYSTEM (Wallet / OM / Sendwave / Card Ready)
+//  FULL PAYMENT & WITHDRAWAL SYSTEM (VALID)
 // ==========================================================
 
 generator client {
@@ -13,9 +12,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ==========================================================
-// ENUMS
-// ==========================================================
+// ===================== ENUMS =====================
 
 enum TransactionStatus {
   PENDING
@@ -32,10 +29,10 @@ enum PayoutMethod {
 }
 
 enum PaymentMethod {
-  WALLET         // Paiement Wallet interne Direct Transf'air
-  ORANGE_MONEY   // Paiement mobile via API Orange Money
-  SENDWAVE       // L'utilisateur paie dans l'app Sendwave et fournit un code
-  CARD           // Paiement par carte (Stripe / Flutterwave → à venir)
+  WALLET
+  ORANGE_MONEY
+  SENDWAVE
+  CARD
 }
 
 enum PaymentProvider {
@@ -50,73 +47,64 @@ enum ProviderStatus {
   FAILED
 }
 
-// ==========================================================
-// MODEL: CLIENT (tenant)
-// ==========================================================
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+}
+
+// ===================== CLIENT =====================
 
 model Client {
-  id        Int      @id @default(autoincrement())
-  code      String   @unique       // ex: DONIKO
-  name      String                // ex: Doniko SARL
+  id   Int    @id @default(autoincrement())
+  code String @unique
+  name String
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // For future Phase B — multi-database per tenant
-  dbName   String?
-  dbHost   String?
-  dbPort   Int?
-  dbUser   String?
-  dbSchema String?
-
-  // Relations
   users         User[]
   beneficiaries Beneficiary[]
   transactions  Transaction[]
+  withdrawals   Withdrawal[]
 }
 
-// ==========================================================
-// MODEL: USER
-// ==========================================================
+// ===================== USER =====================
 
 model User {
   id       String @id @default(cuid())
   email    String @unique
   password String
+  role     String @default("USER")
 
-  role String @default("USER") // USER | ADMIN
-
-  // Infos identité (KYC light)
   firstName String?
   lastName  String?
   phone     String?
 
-  // Adresse physique
   addressNumber String?
   addressStreet String?
   postalCode    String?
   city          String?
   country       String?
 
-  // Infos personnelles
   nationality String?
   birthDate   String?
   birthPlace  String?
 
-  // 🔗 Tenant
   clientId Int
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  client   Client @relation(fields: [clientId], references: [id])
+
+  transactions  Transaction[]
+  beneficiaries Beneficiary[]
+
+  processedWithdrawals Withdrawal[] @relation("ProcessedWithdrawals")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  // Relations
-  transactions  Transaction[]
-  beneficiaries Beneficiary[]
 }
 
-// ==========================================================
-// MODEL: BENEFICIARY
-// ==========================================================
+// ===================== BENEFICIARY =====================
 
 model Beneficiary {
   id       String  @id @default(cuid())
@@ -126,59 +114,72 @@ model Beneficiary {
   phone    String?
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
 
-  // 🔗 Tenant
   clientId Int
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  client   Client @relation(fields: [clientId], references: [id])
+
+  transactions Transaction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  transactions Transaction[]
 }
 
-// ==========================================================
-// MODEL: TRANSACTION (amélioré pour paiements externes)
-// ==========================================================
+// ===================== TRANSACTION =====================
 
 model Transaction {
-  id        String  @id @default(cuid())
-  reference String  @unique
+  id        String @id @default(cuid())
+  reference String @unique
 
   amount Decimal @db.Decimal(12, 2)
   fees   Decimal @db.Decimal(12, 2)
   total  Decimal @db.Decimal(12, 2)
 
-  currency String // EUR / XOF / USD
+  currency String
 
   status       TransactionStatus @default(PENDING)
   payoutMethod PayoutMethod      @default(CASH_PICKUP)
 
-  // ==========================================
-  // 🔥 SECTION PAIEMENT (NOUVEAUTÉ MAJEURE)
-  // ==========================================
-
-  paymentMethod PaymentMethod @default(WALLET)
-
+  paymentMethod  PaymentMethod    @default(WALLET)
   provider       PaymentProvider?
   providerRef    String?
-  providerStatus ProviderStatus? @default(PENDING)
-
-  // ==========================================
+  providerStatus ProviderStatus?  @default(PENDING)
 
   senderId String
-  sender   User @relation(fields: [senderId], references: [id])
+  sender   User   @relation(fields: [senderId], references: [id])
 
   beneficiaryId String
   beneficiary   Beneficiary @relation(fields: [beneficiaryId], references: [id])
 
   clientId Int
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  client   Client @relation(fields: [clientId], references: [id])
+
+  withdrawal Withdrawal?
 
   paidAt      DateTime?
   cancelledAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ===================== WITHDRAWAL =====================
+
+model Withdrawal {
+  id String @id @default(cuid())
+
+  transactionId String      @unique
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+
+  method PayoutMethod
+  status WithdrawalStatus @default(PENDING)
+
+  requestedAt DateTime  @default(now())
+  processedAt DateTime?
+
+  processedById String?
+  processedBy   User?   @relation("ProcessedWithdrawals", fields: [processedById], references: [id])
+
+  clientId Int
+  client   Client @relation(fields: [clientId], references: [id])
 }

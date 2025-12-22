@@ -9,10 +9,7 @@ import { BeneficiariesService } from './beneficiaries.service';
 @Module({
   imports: [AuthModule],
   controllers: [BeneficiariesController],
-  providers: [
-    BeneficiariesService,
-    PrismaService,
-  ],
+  providers: [BeneficiariesService, PrismaService],
   exports: [BeneficiariesService],
 })
 export class BeneficiariesModule {}

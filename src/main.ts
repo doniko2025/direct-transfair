@@ -7,10 +7,20 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // 🔹 DTO validation
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+    }),
+  );
 
-  // 🔹 Swagger config
+  app.enableCors({
+    origin: true,
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id'],
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+  });
+
   const config = new DocumentBuilder()
     .setTitle("Direct Transf'air API")
     .setDescription('Documentation officielle du backend Direct Transf’air')
@@ -21,9 +31,11 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('swagger', app, document);
 
-  await app.listen(3000);
+  const port = 3000;
+  await app.listen(port, '0.0.0.0');
 
-  console.log('🚀 Backend running: http://localhost:3000');
-  console.log('📘 Swagger: http://localhost:3000/swagger');
+  console.log(`🚀 Backend running: http://localhost:${port}`);
+  console.log(`📘 Swagger: http://localhost:${port}/swagger`);
 }
-bootstrap();
+
+void bootstrap();

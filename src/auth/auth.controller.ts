@@ -1,7 +1,13 @@
-//apps/backend/src/auth/auth.controller.ts
 // apps/backend/src/auth/auth.controller.ts
-import { Body, Controller, Post, Req, BadRequestException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  Req,
+  BadRequestException,
+} from '@nestjs/common';
 import { ApiHeader, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
 
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -19,16 +25,23 @@ export class AuthController {
   // ---------------------------------------------------------
   // 🔧 UTIL: convertit x-tenant-id en véritable clientId
   // ---------------------------------------------------------
-  private async resolveClientId(header: any): Promise<number> {
-    if (!header) {
+  private async resolveClientId(headerValue: unknown): Promise<number> {
+    if (headerValue === undefined || headerValue === null) {
       throw new BadRequestException('Missing x-tenant-id header');
     }
 
-    const raw = String(header).trim();
+    const raw = String(headerValue).trim();
+    if (!raw) {
+      throw new BadRequestException('Missing x-tenant-id header');
+    }
 
     // 1️⃣ Si c'est un nombre → ID direct
-    if (!isNaN(Number(raw))) {
-      return Number(raw);
+    if (/^\d+$/.test(raw)) {
+      const id = Number(raw);
+      if (!Number.isFinite(id) || id <= 0) {
+        throw new BadRequestException('Invalid tenant id');
+      }
+      return id;
     }
 
     // 2️⃣ Sinon → c'est un CODE client (ex: DONIKO)
@@ -52,7 +65,7 @@ export class AuthController {
     required: true,
   })
   @Post('register')
-  async register(@Req() req, @Body() dto: RegisterDto) {
+  async register(@Req() req: Request, @Body() dto: RegisterDto) {
     const clientId = await this.resolveClientId(req.headers['x-tenant-id']);
     return this.authService.registerUser(dto, clientId);
   }
@@ -66,16 +79,21 @@ export class AuthController {
     required: true,
   })
   @Post('register-admin')
-  async registerAdmin(@Req() req, @Body() dto: RegisterDto) {
+  async registerAdmin(@Req() req: Request, @Body() dto: RegisterDto) {
     const clientId = await this.resolveClientId(req.headers['x-tenant-id']);
     return this.authService.registerAdmin(dto, clientId);
   }
 
   // ---------------------------------------------------------
   // 🔹 LOGIN
+  // - Si x-tenant-id est présent, on vérifie l'isolation tenant.
+  // - Sinon, on reste compatible (utile pour tests rapides).
   // ---------------------------------------------------------
   @Post('login')
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(@Req() req: Request, @Body() dto: LoginDto) {
+    const header = req.headers['x-tenant-id'];
+    const clientId = header ? await this.resolveClientId(header) : undefined;
+
+    return this.authService.login(dto, clientId);
   }
 }

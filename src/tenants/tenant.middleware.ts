@@ -21,9 +21,7 @@ export class TenantMiddleware implements NestMiddleware {
       tenantCode = rawHeader;
     }
 
-    req.tenantCode = (tenantCode ?? DEFAULT_TENANT_CODE)
-      .trim()
-      .toUpperCase();
+    req.tenantCode = (tenantCode ?? DEFAULT_TENANT_CODE).trim().toUpperCase();
 
     next();
   }

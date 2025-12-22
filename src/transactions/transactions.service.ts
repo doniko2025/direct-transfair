@@ -40,9 +40,7 @@ export class TransactionsService {
     });
 
     if (!beneficiary) {
-      throw new NotFoundException(
-        'Beneficiary not found for this user',
-      );
+      throw new NotFoundException('Beneficiary not found for this user');
     }
 
     if (beneficiary.clientId !== clientId) {
@@ -79,10 +77,7 @@ export class TransactionsService {
     });
   }
 
-  async findOneForUser(
-    id: string,
-    senderId: string,
-  ): Promise<Transaction> {
+  async findOneForUser(id: string, senderId: string): Promise<Transaction> {
     const tx = await this.prisma.transaction.findFirst({
       where: { id, senderId },
     });

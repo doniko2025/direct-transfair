@@ -30,9 +30,7 @@ export class ClientsService {
     });
 
     if (!client) {
-      throw new NotFoundException(
-        `Client '${normalized}' not found`,
-      );
+      throw new NotFoundException(`Client '${normalized}' not found`);
     }
 
     return client;

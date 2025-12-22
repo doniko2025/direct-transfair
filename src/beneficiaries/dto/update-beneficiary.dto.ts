@@ -1,20 +1,24 @@
 //apps/backend/src/beneficiaries/dto/update-beneficiary.dto.ts
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, MinLength } from 'class-validator';
 
 export class UpdateBeneficiaryDto {
-  @IsString()
   @IsOptional()
+  @IsString()
+  @MinLength(2)
   fullName?: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
+  @MinLength(2)
   country?: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
+  @MinLength(2)
   city?: string;
 
-  @IsString()
+  // autorise null pour "effacer" le téléphone
   @IsOptional()
-  phone?: string;
+  @IsString()
+  phone?: string | null;
 }
