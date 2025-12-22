@@ -1,8 +1,16 @@
 // apps/backend/src/auth/jwt.strategy.ts
-import { Injectable } from '@nestjs/common';
-import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
-import { ConfigService } from '@nestjs/config';
+import { Injectable } from "@nestjs/common";
+import { PassportStrategy } from "@nestjs/passport";
+import { ExtractJwt, Strategy } from "passport-jwt";
+import { ConfigService } from "@nestjs/config";
+import type { AuthUserPayload } from "./types/auth-user-payload.type";
+
+type JwtPayload = {
+  sub: string;
+  email?: string;
+  role?: string;
+  clientId?: number;
+};
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -10,15 +18,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_SECRET') ?? '',
+      secretOrKey: config.get<string>("JWT_SECRET") ?? "",
     });
   }
 
-  validate(payload: { sub: string; email: string; role: string }) {
+  validate(payload: JwtPayload): AuthUserPayload {
     return {
-      userId: payload.sub,
+      id: payload.sub,
+      sub: payload.sub, // compat
       email: payload.email,
-      role: payload.role, // <-- ESSENTIEL POUR RolesGuard
+      role: payload.role,
+      clientId: payload.clientId,
     };
   }
 }

@@ -1,5 +1,11 @@
 // src/transactions/dto/create-transaction.dto.ts
-import { IsEnum, IsNotEmpty, IsNumber, IsPositive, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsPositive,
+  IsString,
+} from 'class-validator';
 import { PayoutMethod } from '@prisma/client';
 
 export class CreateTransactionDto {

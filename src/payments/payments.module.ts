@@ -1,27 +1,17 @@
-//apps/backend/src/payments/payments.module.ts
+// apps/backend/src/payments/payments.module.ts
 import { Module } from '@nestjs/common';
-
-// Core services
-import { PrismaService } from '../prisma/prisma.service';
-
-// Payments
-import { PaymentsController } from './controller/payments.controller';
+import { PrismaModule } from '../prisma/prisma.module';
+import { AuthModule } from '../auth/auth.module';
+import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
+import { TenancyService } from '../common/tenancy/tenancy.service';
 import { OrangeMoneyService } from './orange-money.service';
 import { SendwaveService } from './sendwave.service';
 
-// Transactions (needed to update payment results)
-import { TransactionsService } from '../transactions/transactions.service';
-
 @Module({
+  imports: [PrismaModule, AuthModule],
   controllers: [PaymentsController],
-  providers: [
-    PrismaService,
-    PaymentsService,
-    OrangeMoneyService,
-    SendwaveService,
-    TransactionsService,
-  ],
+  providers: [PaymentsService, TenancyService, OrangeMoneyService, SendwaveService],
   exports: [PaymentsService],
 })
 export class PaymentsModule {}

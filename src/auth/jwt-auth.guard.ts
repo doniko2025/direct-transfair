@@ -7,10 +7,19 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
-
 import type { AuthUserPayload } from './types/auth-user-payload.type';
 
-type AuthenticatedRequest = Request & { user?: AuthUserPayload };
+type JwtPayloadLike = {
+  sub?: string;
+  id?: string;
+  userId?: string;
+  email?: string;
+  role?: string;
+};
+
+type AuthenticatedRequest = Request & {
+  user?: AuthUserPayload;
+};
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -19,31 +28,38 @@ export class JwtAuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
-    const rawHeader = req.headers.authorization ?? req.headers.Authorization;
+    // Express normalise en minuscules : "authorization"
+    const rawHeader = req.headers['authorization'];
 
     if (!rawHeader || Array.isArray(rawHeader)) {
       throw new UnauthorizedException('Missing Authorization header');
     }
 
-    const header = rawHeader.trim();
-    let token: string | undefined;
+    const header = String(rawHeader).trim();
 
-    // 1) Cas normal: "Bearer <token>"
-    if (header.toLowerCase().startsWith('bearer ')) {
-      token = header.slice(7).trim();
-    } else {
-      // 2) Cas toléré: "<token>" tout seul (comme dans ton script admin)
-      token = header;
-    }
+    // Supporte "Bearer <token>" ou "<token>"
+    const token = header.toLowerCase().startsWith('bearer ')
+      ? header.slice(7).trim()
+      : header;
 
     if (!token) {
       throw new UnauthorizedException('Invalid Authorization header');
     }
 
     try {
-      const payload = this.jwt.verify<AuthUserPayload>(token);
-      // On pose le payload sur req.user pour les contrôleurs
-      req.user = payload;
+      const payload = this.jwt.verify<JwtPayloadLike>(token);
+
+      const id = payload.sub ?? payload.id ?? payload.userId;
+      if (!id) throw new UnauthorizedException('Invalid token payload');
+
+      // IMPORTANT : id + sub pour compat
+      req.user = {
+        id,
+        sub: id,
+        email: payload.email,
+        role: payload.role,
+      };
+
       return true;
     } catch {
       throw new UnauthorizedException('Invalid token');

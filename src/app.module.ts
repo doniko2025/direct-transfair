@@ -10,6 +10,10 @@ import { AuthModule } from './auth/auth.module';
 import { BeneficiariesModule } from './beneficiaries/beneficiaries.module';
 import { TransactionsModule } from './transactions/transactions.module';
 
+// ✅ Ajouts
+import { PaymentsModule } from './payments/payments.module';
+import { WithdrawalsModule } from './withdrawals/withdrawals.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -20,6 +24,10 @@ import { TransactionsModule } from './transactions/transactions.module';
     AuthModule,
     BeneficiariesModule,
     TransactionsModule,
+
+    // ✅ new
+    PaymentsModule,
+    WithdrawalsModule,
   ],
 })
 export class AppModule {}

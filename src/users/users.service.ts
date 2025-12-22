@@ -1,5 +1,4 @@
 // apps/backend/src/users/users.service.ts
-// apps/backend/src/users/users.service.ts
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { User } from '@prisma/client';
@@ -19,6 +18,10 @@ type UserExtraFields = {
   birthPlace?: string;
 };
 
+function normalizeEmail(email: string): string {
+  return String(email ?? '').trim().toLowerCase();
+}
+
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
@@ -27,8 +30,9 @@ export class UsersService {
   // 🔹 FIND BY EMAIL
   // ---------------------------------------------------------
   findByEmail(email: string): Promise<User | null> {
+    const normalizedEmail = normalizeEmail(email);
     return this.prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
   }
 
@@ -43,8 +47,6 @@ export class UsersService {
 
   // ---------------------------------------------------------
   // 🔹 CREATE USER (avec éventuels champs KYC)
-  //
-  // extra = { firstName, lastName, phone, addressNumber, ... }
   // ---------------------------------------------------------
   create(
     email: string,
@@ -53,13 +55,15 @@ export class UsersService {
     clientId: number,
     extra: UserExtraFields = {},
   ): Promise<User> {
+    const normalizedEmail = normalizeEmail(email);
+
     return this.prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         password: passwordHash,
         role,
-        clientId,        // 🔗 lien vers le tenant (Client)
-        ...extra,        // tous les champs KYC éventuels
+        clientId,
+        ...extra,
       },
     });
   }

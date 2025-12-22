@@ -1,11 +1,12 @@
 //apps/backend/src/payments/sendwave.service.ts
+// apps/backend/src/payments/sendwave.service.ts
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Transaction } from '@prisma/client';
+import { PaymentMethod, PaymentProvider, ProviderStatus, Transaction, TransactionStatus } from '@prisma/client';
 
 @Injectable()
 export class SendwaveService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async initiate(tx: Transaction) {
     const providerRef = 'SW_' + Math.floor(100000 + Math.random() * 900000);
@@ -13,9 +14,11 @@ export class SendwaveService {
     await this.prisma.transaction.update({
       where: { id: tx.id },
       data: {
-        provider: 'SENDWAVE',
+        paymentMethod: PaymentMethod.SENDWAVE,
+        provider: PaymentProvider.SENDWAVE,
         providerRef,
-        status: 'PENDING',
+        providerStatus: ProviderStatus.PENDING,
+        status: TransactionStatus.PENDING,
       },
     });
 
