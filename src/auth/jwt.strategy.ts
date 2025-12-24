@@ -1,9 +1,10 @@
-// apps/backend/src/auth/jwt.strategy.ts
-import { Injectable } from "@nestjs/common";
-import { PassportStrategy } from "@nestjs/passport";
-import { ExtractJwt, Strategy } from "passport-jwt";
-import { ConfigService } from "@nestjs/config";
-import type { AuthUserPayload } from "./types/auth-user-payload.type";
+//apps/backend/src/auth/jwt.strategy.ts
+import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+import { ConfigService } from '@nestjs/config';
+
+import type { AuthUserPayload } from './types/auth-user-payload.type';
 
 type JwtPayload = {
   sub: string;
@@ -18,17 +19,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>("JWT_SECRET") ?? "",
+      secretOrKey: config.get<string>('JWT_SECRET') ?? '',
     });
   }
 
   validate(payload: JwtPayload): AuthUserPayload {
     return {
       id: payload.sub,
-      sub: payload.sub, // compat
+      sub: payload.sub,
       email: payload.email,
       role: payload.role,
       clientId: payload.clientId,
     };
   }
 }
+
+// Optionnel mais pratique (ne casse rien)
+export default JwtStrategy;

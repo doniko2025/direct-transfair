@@ -22,9 +22,11 @@ export class AuthController {
     private readonly prisma: PrismaService,
   ) {}
 
-  // ---------------------------------------------------------
-  // 🔧 UTIL: convertit x-tenant-id en véritable clientId
-  // ---------------------------------------------------------
+  /**
+   * convertit x-tenant-id en clientId
+   * - Supporte : "DONIKO" (code) ou "1" (id)
+   * - Normalise les codes en uppercase
+   */
   private async resolveClientId(headerValue: unknown): Promise<number> {
     if (headerValue === undefined || headerValue === null) {
       throw new BadRequestException('Missing x-tenant-id header');
@@ -35,30 +37,40 @@ export class AuthController {
       throw new BadRequestException('Missing x-tenant-id header');
     }
 
-    // 1️⃣ Si c'est un nombre → ID direct
+    // 1) Header numérique → ID direct (mais on vérifie qu'il existe)
     if (/^\d+$/.test(raw)) {
       const id = Number(raw);
       if (!Number.isFinite(id) || id <= 0) {
         throw new BadRequestException('Invalid tenant id');
       }
-      return id;
+
+      const exists = await this.prisma.client.findUnique({
+        where: { id },
+        select: { id: true },
+      });
+
+      if (!exists) {
+        throw new BadRequestException(`Unknown tenant id: ${id}`);
+      }
+
+      return exists.id;
     }
 
-    // 2️⃣ Sinon → c'est un CODE client (ex: DONIKO)
+    // 2) Sinon → code (ex: DONIKO)
+    const code = raw.toUpperCase();
+
     const client = await this.prisma.client.findUnique({
-      where: { code: raw },
+      where: { code },
+      select: { id: true },
     });
 
     if (!client) {
-      throw new BadRequestException(`Unknown tenant code: ${raw}`);
+      throw new BadRequestException(`Unknown tenant code: ${code}`);
     }
 
     return client.id;
   }
 
-  // ---------------------------------------------------------
-  // 🔹 REGISTER (USER)
-  // ---------------------------------------------------------
   @ApiHeader({
     name: 'x-tenant-id',
     description: 'Tenant identifier (ex: DONIKO or 1)',
@@ -70,9 +82,6 @@ export class AuthController {
     return this.authService.registerUser(dto, clientId);
   }
 
-  // ---------------------------------------------------------
-  // 🔹 REGISTER (ADMIN)
-  // ---------------------------------------------------------
   @ApiHeader({
     name: 'x-tenant-id',
     description: 'Tenant identifier (ex: DONIKO or 1)',
@@ -84,16 +93,10 @@ export class AuthController {
     return this.authService.registerAdmin(dto, clientId);
   }
 
-  // ---------------------------------------------------------
-  // 🔹 LOGIN
-  // - Si x-tenant-id est présent, on vérifie l'isolation tenant.
-  // - Sinon, on reste compatible (utile pour tests rapides).
-  // ---------------------------------------------------------
   @Post('login')
   async login(@Req() req: Request, @Body() dto: LoginDto) {
     const header = req.headers['x-tenant-id'];
     const clientId = header ? await this.resolveClientId(header) : undefined;
-
     return this.authService.login(dto, clientId);
   }
 }

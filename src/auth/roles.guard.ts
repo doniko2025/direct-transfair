@@ -1,14 +1,7 @@
-//apps/backend/src/auth/roles.guard.ts
 // apps/backend/src/auth/roles.guard.ts
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Request } from 'express';
-
-export interface AuthenticatedUser {
-  userId: string;
-  email: string;
-  role: string;
-}
+import type { AuthRequest } from '../common/types/auth-request';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -18,14 +11,14 @@ export class RolesGuard implements CanActivate {
     const requiredRoles =
       this.reflector.get<string[]>('roles', context.getHandler()) ?? [];
 
+    // Si aucune contrainte de rôle, on laisse passer
     if (requiredRoles.length === 0) return true;
 
-    const req = context.switchToHttp().getRequest<Request>();
-    const user = req.user as AuthenticatedUser | undefined;
+    const req = context.switchToHttp().getRequest<AuthRequest>();
+    const role = String(req.user?.role ?? '').toUpperCase();
 
-    if (!user) return false;
-    if (typeof user.role !== 'string') return false;
+    if (!role) return false;
 
-    return requiredRoles.includes(user.role);
+    return requiredRoles.map((r) => String(r).toUpperCase()).includes(role);
   }
 }

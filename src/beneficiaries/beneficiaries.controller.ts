@@ -16,10 +16,12 @@ import type { Request } from 'express';
 import { BeneficiariesService } from './beneficiaries.service';
 import { CreateBeneficiaryDto } from './dto/create-beneficiary.dto';
 import { UpdateBeneficiaryDto } from './dto/update-beneficiary.dto';
+
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { TenantGuard } from '../tenants/tenant.guard';
 import type { AuthUserPayload } from '../auth/types/auth-user-payload.type';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(TenantGuard, JwtAuthGuard)
 @Controller('beneficiaries')
 export class BeneficiariesController {
   constructor(private readonly beneficiariesService: BeneficiariesService) {}
