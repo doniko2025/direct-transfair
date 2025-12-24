@@ -12,11 +12,17 @@ export class TenantService {
   constructor(private readonly clientsService: ClientsService) {}
 
   async getCurrentClient(req: RequestWithTenant): Promise<Client> {
-    const tenant =
+    const fromContext = req.tenantContext?.code;
+
+    const fromLegacy =
       typeof req.tenantCode === 'string'
         ? req.tenantCode.trim().toUpperCase()
-        : DEFAULT_TENANT_CODE;
+        : undefined;
 
-    return this.clientsService.findByCode(tenant);
+    const code = (fromContext ?? fromLegacy ?? DEFAULT_TENANT_CODE)
+      .trim()
+      .toUpperCase();
+
+    return this.clientsService.findByCode(code);
   }
 }

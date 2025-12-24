@@ -13,39 +13,50 @@ import type { Request } from 'express';
 
 import { PaymentsService } from '../payments.service';
 import { InitiatePaymentDto } from '../dto/initiate-payment.dto';
-import { TenancyService } from '../../common/tenancy/tenancy.service';
-import type { AuthRequest } from '../../common/types/auth-request';
-import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 
+import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
+import { TenantGuard } from '../../tenants/tenant.guard';
+import type { AuthUserPayload } from '../../auth/types/auth-user-payload.type';
+import type { TenantContext } from '../../tenants/tenant-context';
+
+type ReqWithAuth = Request & {
+  user?: AuthUserPayload;
+  tenantContext?: TenantContext;
+};
+
+@UseGuards(TenantGuard, JwtAuthGuard)
 @Controller()
 export class PaymentsController {
-  constructor(
-    private readonly payments: PaymentsService,
-    private readonly tenancy: TenancyService,
-  ) {}
+  constructor(private readonly payments: PaymentsService) {}
 
-  @UseGuards(JwtAuthGuard)
   @Post('payments/initiate')
-  async initiate(@Req() req: AuthRequest, @Body() dto: InitiatePaymentDto) {
+  async initiate(@Req() req: ReqWithAuth, @Body() dto: InitiatePaymentDto) {
+    const clientId = req.tenantContext?.clientId;
+    if (typeof clientId !== 'number') {
+      throw new ForbiddenException('Tenant not resolved');
+    }
+
     if (!req.user?.id) {
       throw new ForbiddenException('Not authenticated');
     }
 
-    const clientId = await this.tenancy.resolveClientId(req as unknown as Request);
     return this.payments.initiate(clientId, req.user.id, dto);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('payments/status/:transactionId')
   async status(
-    @Req() req: AuthRequest,
+    @Req() req: ReqWithAuth,
     @Param('transactionId') transactionId: string,
   ) {
+    const clientId = req.tenantContext?.clientId;
+    if (typeof clientId !== 'number') {
+      throw new ForbiddenException('Tenant not resolved');
+    }
+
     if (!req.user?.id) {
       throw new ForbiddenException('Not authenticated');
     }
 
-    const clientId = await this.tenancy.resolveClientId(req as unknown as Request);
     return this.payments.status(clientId, req.user.id, transactionId);
   }
 }

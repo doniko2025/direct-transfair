@@ -1,18 +1,32 @@
-// src/tenants/tenants.module.ts
+// apps/backend/src/tenants/tenants.module.ts
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 
+import { PrismaModule } from '../prisma/prisma.module';
 import { ClientsModule } from '../clients/clients.module';
+
 import { TenantMiddleware } from './tenant.middleware';
 import { TenantService } from './tenant.service';
+import { TenantResolverService } from './tenant-resolver.service';
+import { TenantGuard } from './tenant.guard';
 
 @Module({
-  imports: [ClientsModule],
-  providers: [TenantService],
-  exports: [TenantService],
+  imports: [
+    PrismaModule,
+    ClientsModule,
+  ],
+  providers: [
+    TenantService,
+    TenantResolverService,
+    TenantGuard,
+  ],
+  exports: [
+    TenantService,
+    TenantResolverService,
+    TenantGuard,
+  ],
 })
 export class TenantsModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // On applique le middleware sur toutes les routes
     consumer.apply(TenantMiddleware).forRoutes('*');
   }
 }

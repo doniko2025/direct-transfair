@@ -7,16 +7,15 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
+import { JwtAuthGuard } from './jwt-auth.guard';
 
 import { UsersModule } from '../users/users.module';
-import { TenantsModule } from '../tenants/tenants.module';
 import { PrismaModule } from '../prisma/prisma.module';
 
 function parseExpiresToSeconds(raw: unknown): number {
-  // Accept: number, "86400", "15m", "12h", "1d"
   if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) return raw;
 
-  const s = String(raw ?? '').trim();
+  const s = typeof raw === 'string' ? raw.trim() : '';
   if (!s) return 86400;
 
   if (/^\d+$/.test(s)) {
@@ -28,49 +27,46 @@ function parseExpiresToSeconds(raw: unknown): number {
   if (!m) return 86400;
 
   const qty = Number(m[1]);
-  const unit = m[2].toLowerCase();
-
   if (!Number.isFinite(qty) || qty <= 0) return 86400;
 
-  switch (unit) {
-    case 's':
-      return qty;
-    case 'm':
-      return qty * 60;
-    case 'h':
-      return qty * 3600;
-    case 'd':
-      return qty * 86400;
-    default:
-      return 86400;
+  switch (m[2].toLowerCase()) {
+    case 's': return qty;
+    case 'm': return qty * 60;
+    case 'h': return qty * 3600;
+    case 'd': return qty * 86400;
+    default: return 86400;
   }
 }
 
 @Module({
   imports: [
-    PassportModule,
-    UsersModule,
-    TenantsModule,
     ConfigModule,
+    PassportModule.register({ defaultStrategy: 'jwt' }),
     PrismaModule,
+    UsersModule,
 
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const secret = config.get<string>('JWT_SECRET') ?? '';
-        const expiresRaw = config.get<string>('JWT_EXPIRES_IN') ?? '1d';
-        const expiresIn = parseExpiresToSeconds(expiresRaw);
-
-        return {
-          secret,
-          signOptions: { expiresIn },
-        };
-      },
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>('JWT_SECRET') ?? '',
+        signOptions: {
+          expiresIn: parseExpiresToSeconds(
+            config.get<string>('JWT_EXPIRES_IN') ??
+            config.get<string>('JWT_EXPIRES') ??
+            '1d',
+          ),
+        },
+      }),
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [AuthService, JwtModule, PassportModule],
+  providers: [AuthService, JwtStrategy, JwtAuthGuard],
+  exports: [
+    AuthService,
+    JwtModule,
+    PassportModule,
+    JwtAuthGuard, // ⬅️ CRITIQUE
+  ],
 })
 export class AuthModule {}

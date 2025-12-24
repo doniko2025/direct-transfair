@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
 import { PrismaService } from '../prisma/prisma.service';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { OrangeMoneyService } from './orange-money.service';
@@ -30,7 +31,15 @@ export class PaymentsService {
 
     const txLite = await this.prisma.transaction.findFirst({
       where: { id: transactionId, clientId },
-      select: { id: true, senderId: true, status: true },
+      select: {
+        id: true,
+        senderId: true,
+        status: true,
+        paymentMethod: true,
+        provider: true,
+        providerStatus: true,
+        paidAt: true,
+      },
     });
 
     if (!txLite) throw new NotFoundException('Transaction not found');
@@ -38,7 +47,28 @@ export class PaymentsService {
       throw new ForbiddenException('Transaction does not belong to this user');
     }
 
-    // ✅ Compat : on accepte paymentMethod (nouveau) OU method (ancien)
+    // -----------------------------
+    // Verrou statut + idempotence
+    // -----------------------------
+    if (txLite.status === TransactionStatus.CANCELLED) {
+      throw new BadRequestException('Transaction annulée');
+    }
+
+    if (txLite.status === TransactionStatus.PAID) {
+      // Idempotent: on renvoie l'état actuel
+      return this.status(clientId, userId, txLite.id);
+    }
+
+    if (
+      txLite.status !== TransactionStatus.PENDING &&
+      txLite.status !== TransactionStatus.VALIDATED
+    ) {
+      throw new BadRequestException(
+        `Paiement interdit: transaction status=${txLite.status}`,
+      );
+    }
+
+    // Compat : on accepte paymentMethod (nouveau) OU method (ancien)
     const method = dto.paymentMethod ?? dto.method;
     if (!method) {
       throw new BadRequestException('paymentMethod/method manquant');
@@ -46,19 +76,35 @@ export class PaymentsService {
 
     switch (method) {
       case PaymentMethod.WALLET:
-        return this.handleWallet(txLite.id);
+        return this.handleWallet(clientId, txLite.id);
 
       case PaymentMethod.ORANGE_MONEY: {
-        const tx = await this.prisma.transaction.findUniqueOrThrow({
-          where: { id: txLite.id },
+        await this.markProviderPending(
+          clientId,
+          txLite.id,
+          PaymentMethod.ORANGE_MONEY,
+          PaymentProvider.ORANGE_MONEY,
+        );
+
+        const tx = await this.prisma.transaction.findFirstOrThrow({
+          where: { id: txLite.id, clientId },
         });
+
         return this.om.initiate(tx);
       }
 
       case PaymentMethod.SENDWAVE: {
-        const tx = await this.prisma.transaction.findUniqueOrThrow({
-          where: { id: txLite.id },
+        await this.markProviderPending(
+          clientId,
+          txLite.id,
+          PaymentMethod.SENDWAVE,
+          PaymentProvider.SENDWAVE,
+        );
+
+        const tx = await this.prisma.transaction.findFirstOrThrow({
+          where: { id: txLite.id, clientId },
         });
+
         return this.sendwave.initiate(tx);
       }
 
@@ -98,26 +144,64 @@ export class PaymentsService {
     return tx;
   }
 
-  private async handleWallet(id: string) {
-    return this.prisma.transaction.update({
-      where: { id },
+  /**
+   * Paiement direct wallet (dev-friendly) :
+   * - update borné par (id, clientId) via updateMany + re-fetch
+   */
+  private async handleWallet(clientId: number, id: string) {
+    return this.prisma.$transaction(async (p) => {
+      const upd = await p.transaction.updateMany({
+        where: { id, clientId },
+        data: {
+          status: TransactionStatus.PAID,
+          paidAt: new Date(),
+          cancelledAt: null,
+          paymentMethod: PaymentMethod.WALLET,
+          provider: PaymentProvider.DIRECT,
+          providerRef: null,
+          providerStatus: ProviderStatus.SUCCESS,
+        },
+      });
+
+      if (upd.count !== 1) {
+        throw new NotFoundException('Transaction not found');
+      }
+
+      return p.transaction.findFirstOrThrow({
+        where: { id, clientId },
+        select: {
+          id: true,
+          status: true,
+          paymentMethod: true,
+          provider: true,
+          providerRef: true,
+          providerStatus: true,
+          paidAt: true,
+        },
+      });
+    });
+  }
+
+  /**
+   * Marque le provider/method comme "en cours" avant l'appel externe.
+   */
+  private async markProviderPending(
+    clientId: number,
+    id: string,
+    method: PaymentMethod,
+    provider: PaymentProvider,
+  ): Promise<void> {
+    const upd = await this.prisma.transaction.updateMany({
+      where: { id, clientId },
       data: {
-        status: TransactionStatus.PAID,
-        paidAt: new Date(),
-        paymentMethod: PaymentMethod.WALLET,
-        provider: PaymentProvider.DIRECT,
-        providerRef: null,
-        providerStatus: ProviderStatus.SUCCESS,
-      },
-      select: {
-        id: true,
-        status: true,
-        paymentMethod: true,
-        provider: true,
-        providerRef: true,
-        providerStatus: true,
-        paidAt: true,
+        paymentMethod: method,
+        provider,
+        providerStatus: ProviderStatus.PENDING,
       },
     });
+
+    if (upd.count !== 1) {
+      throw new NotFoundException('Transaction not found');
+    }
   }
 }

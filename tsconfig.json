@@ -5,6 +5,9 @@
     "target": "ES2021",
     "lib": ["ES2021"],
 
+    "rootDir": "./src",
+    "outDir": "./dist",
+
     "sourceMap": true,
     "declaration": false,
     "removeComments": true,
@@ -22,6 +25,18 @@
     "strictNullChecks": true,
     "noImplicitAny": false,
 
-    "forceConsistentCasingInFileNames": true
-  }
+    "forceConsistentCasingInFileNames": true,
+
+    "types": ["node"],
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "**/*.spec.ts",
+    "**/*.e2e-spec.ts",
+    "prisma"
+  ]
 }

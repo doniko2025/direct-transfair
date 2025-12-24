@@ -2,26 +2,37 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import type { Request, Response, NextFunction } from 'express';
 
-export interface RequestWithTenant extends Request {
+import type { TenantContext } from './tenant-context';
+
+export type RequestWithTenant = Request & {
+  // legacy (compat)
   tenantCode?: string;
-}
+  // new
+  tenantContext?: TenantContext;
+};
 
 const DEFAULT_TENANT_CODE = 'DONIKO';
 
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
-  use(req: RequestWithTenant, res: Response, next: NextFunction): void {
+  use(req: RequestWithTenant, _res: Response, next: NextFunction): void {
     const rawHeader = req.headers['x-tenant-id'];
 
-    let tenantCode: string | undefined;
+    const raw =
+      Array.isArray(rawHeader) ? rawHeader[0] : (rawHeader ?? DEFAULT_TENANT_CODE);
 
-    if (Array.isArray(rawHeader)) {
-      tenantCode = rawHeader[0];
-    } else if (typeof rawHeader === 'string') {
-      tenantCode = rawHeader;
-    }
+    const code = String(raw).trim().toUpperCase() || DEFAULT_TENANT_CODE;
 
-    req.tenantCode = (tenantCode ?? DEFAULT_TENANT_CODE).trim().toUpperCase();
+    // compat ancien code
+    req.tenantCode = code;
+
+    // nouveau tenant context (Hybrid)
+    req.tenantContext = {
+      code,
+      clientId: -1, // résolu ensuite via TenantGuard/TenantResolverService
+      databaseUrl: process.env.DATABASE_URL ?? '',
+      mode: 'single-db',
+    };
 
     next();
   }

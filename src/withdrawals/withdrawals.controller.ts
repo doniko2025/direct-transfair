@@ -10,29 +10,36 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import type { Request } from 'express';
 
 import { WithdrawalsService } from './withdrawals.service';
 import { CreateWithdrawalDto } from './dto/create-withdrawal.dto';
 import { UpdateWithdrawalStatusDto } from './dto/update-withdrawal-status.dto';
-import { TenancyService } from '../common/tenancy/tenancy.service';
+
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { TenantGuard } from '../tenants/tenant.guard';
 import { AdminGuard } from '../common/guards/admin.guard';
 import type { AuthUserPayload } from '../auth/types/auth-user-payload.type';
+import type { TenantContext } from '../tenants/tenant-context';
 
+type ReqWithAuth = Request & {
+  user?: AuthUserPayload;
+  tenantContext?: TenantContext;
+};
+
+@UseGuards(TenantGuard, JwtAuthGuard)
 @Controller()
 export class WithdrawalsController {
-  constructor(
-    private readonly withdrawals: WithdrawalsService,
-    private readonly tenancy: TenancyService,
-  ) {}
+  constructor(private readonly withdrawals: WithdrawalsService) {}
 
-  @UseGuards(AuthGuard('jwt'))
   @Post('withdrawals')
-  async create(@Req() req: Request, @Body() dto: CreateWithdrawalDto) {
-    const clientId = await this.tenancy.resolveClientId(req);
+  async create(@Req() req: ReqWithAuth, @Body() dto: CreateWithdrawalDto) {
+    const clientId = req.tenantContext?.clientId;
+    if (typeof clientId !== 'number' || clientId <= 0) {
+      throw new ForbiddenException('Tenant not resolved');
+    }
 
-    const user = req.user as AuthUserPayload | undefined;
+    const user = req.user;
     if (!user?.id) {
       throw new ForbiddenException('Not authenticated');
     }
@@ -40,12 +47,14 @@ export class WithdrawalsController {
     return this.withdrawals.create(clientId, user.id, dto);
   }
 
-  @UseGuards(AuthGuard('jwt'))
   @Get('withdrawals/me')
-  async mine(@Req() req: Request) {
-    const clientId = await this.tenancy.resolveClientId(req);
+  async mine(@Req() req: ReqWithAuth) {
+    const clientId = req.tenantContext?.clientId;
+    if (typeof clientId !== 'number' || clientId <= 0) {
+      throw new ForbiddenException('Tenant not resolved');
+    }
 
-    const user = req.user as AuthUserPayload | undefined;
+    const user = req.user;
     if (!user?.id) {
       throw new ForbiddenException('Not authenticated');
     }
@@ -53,23 +62,30 @@ export class WithdrawalsController {
     return this.withdrawals.listMine(clientId, user.id);
   }
 
-  @UseGuards(AuthGuard('jwt'), AdminGuard)
+  @UseGuards(AdminGuard)
   @Get('admin/withdrawals')
-  async adminAll(@Req() req: Request) {
-    const clientId = await this.tenancy.resolveClientId(req);
+  async adminAll(@Req() req: ReqWithAuth) {
+    const clientId = req.tenantContext?.clientId;
+    if (typeof clientId !== 'number' || clientId <= 0) {
+      throw new ForbiddenException('Tenant not resolved');
+    }
+
     return this.withdrawals.adminListAll(clientId);
   }
 
-  @UseGuards(AuthGuard('jwt'), AdminGuard)
+  @UseGuards(AdminGuard)
   @Patch('admin/withdrawals/:id')
   async adminUpdate(
-    @Req() req: Request,
+    @Req() req: ReqWithAuth,
     @Param('id') id: string,
     @Body() dto: UpdateWithdrawalStatusDto,
   ) {
-    const clientId = await this.tenancy.resolveClientId(req);
+    const clientId = req.tenantContext?.clientId;
+    if (typeof clientId !== 'number' || clientId <= 0) {
+      throw new ForbiddenException('Tenant not resolved');
+    }
 
-    const user = req.user as AuthUserPayload | undefined;
+    const user = req.user;
     if (!user?.id) {
       throw new ForbiddenException('Not authenticated');
     }
