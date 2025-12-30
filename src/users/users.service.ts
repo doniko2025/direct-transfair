@@ -1,7 +1,8 @@
 // apps/backend/src/users/users.service.ts
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
 import type { User } from '@prisma/client';
+
+import { PrismaService } from '../prisma/prisma.service';
 import type { UserRole } from '../auth/dto/register.dto';
 
 type UserExtraFields = {

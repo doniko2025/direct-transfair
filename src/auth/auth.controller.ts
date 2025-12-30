@@ -5,14 +5,18 @@ import {
   Post,
   Req,
   BadRequestException,
+  Get,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiHeader, ApiTags } from '@nestjs/swagger';
+import { ApiHeader, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import type { Request } from 'express';
 
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import type { AuthUserPayload } from './types/auth-user-payload.type';
 
 @Controller('auth')
 @ApiTags('Auth')
@@ -98,5 +102,19 @@ export class AuthController {
     const header = req.headers['x-tenant-id'];
     const clientId = header ? await this.resolveClientId(header) : undefined;
     return this.authService.login(dto, clientId);
+  }
+
+  // ======================================================
+  // ✅ GET /auth/me — NOUVEAU (safe, multi-tenant, JWT)
+  // ======================================================
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async me(@Req() req: Request & { user?: AuthUserPayload }) {
+    if (!req.user) {
+      throw new BadRequestException('User not found in request');
+    }
+
+    return req.user;
   }
 }

@@ -1,10 +1,10 @@
-//apps/backend/src/main.ts
+// apps/backend/src/main.ts
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
-async function bootstrap() {
+async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
   app.useGlobalPipes(
@@ -31,11 +31,13 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('swagger', app, document);
 
-  const port = 3000;
+  const port = process.env.PORT ? Number(process.env.PORT) : 3000;
   await app.listen(port, '0.0.0.0');
 
-  console.log(`🚀 Backend running: http://localhost:${port}`);
-  console.log(`📘 Swagger: http://localhost:${port}/swagger`);
+  // eslint-disable-next-line no-console
+  console.log(`Backend running: http://localhost:${port}`);
+  // eslint-disable-next-line no-console
+  console.log(`Swagger: http://localhost:${port}/swagger`);
 }
 
 void bootstrap();

@@ -1,17 +1,16 @@
 // apps/backend/prisma/seed.ts
-import { PrismaClient } from "@prisma/client";
+/* eslint-disable @typescript-eslint/no-var-requires */
+
+// CommonJS strict — compatible Prisma + NestJS
+const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 
-async function hashPassword(plain: string): Promise<string> {
+function hashPassword(plain: string): Promise<string> {
   try {
-    // bcrypt (si installé)
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const bcrypt = require("bcrypt");
     return bcrypt.hash(plain, 10);
   } catch {
-    // bcryptjs fallback
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const bcryptjs = require("bcryptjs");
     return bcryptjs.hash(plain, 10);
   }
@@ -21,33 +20,28 @@ async function main() {
   const tenantCode = "DONIKO";
   const tenantName = "DONIKO";
 
-  // 1) Tenant / Client
+  // 1) Client / Tenant
   const client = await prisma.client.upsert({
     where: { code: tenantCode },
     update: { name: tenantName },
     create: { code: tenantCode, name: tenantName },
   });
 
-  // 2) Users seed (admin + user)
+  // 2) Comptes
   const adminEmail = "admin@doniko.local";
   const userEmail = "user@doniko.local";
 
-  const adminPasswordPlain = "Admin2025!";
-  const userPasswordPlain = "User2025!";
-
-  const [adminHash, userHash] = await Promise.all([
-    hashPassword(adminPasswordPlain),
-    hashPassword(userPasswordPlain),
-  ]);
+  const adminHash = await hashPassword("Admin2025!");
+  const userHash = await hashPassword("User2025!");
 
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
     update: {
       role: "ADMIN",
-      password: adminHash,
       clientId: client.id,
       firstName: "Admin",
       lastName: "DONIKO",
+      password: adminHash,
     },
     create: {
       email: adminEmail,
@@ -63,10 +57,10 @@ async function main() {
     where: { email: userEmail },
     update: {
       role: "USER",
-      password: userHash,
       clientId: client.id,
       firstName: "User",
       lastName: "DONIKO",
+      password: userHash,
     },
     create: {
       email: userEmail,
@@ -79,16 +73,19 @@ async function main() {
   });
 
   console.log("✅ Seed OK");
-  console.log("Tenant:", { code: client.code, id: client.id });
-  console.log("Admin:", { email: admin.email, role: admin.role });
-  console.log("User:", { email: user.email, role: user.role });
+  console.table({
+    tenant: client.code,
+    admin: admin.email,
+    user: user.email,
+  });
 }
 
 main()
-  .catch((e) => {
+  .catch((e: unknown) => {
     console.error("❌ Seed error:", e);
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
   });
+//npx prisma db seed

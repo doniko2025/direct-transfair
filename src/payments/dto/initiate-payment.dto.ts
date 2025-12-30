@@ -7,16 +7,17 @@ export class InitiatePaymentDto {
   @IsNotEmpty()
   transactionId!: string;
 
-  // nouveau nom
+  // Nouveau nom (canonique)
   @IsOptional()
   @IsEnum(PaymentMethod)
   paymentMethod?: PaymentMethod;
 
-  // ancien nom (compat)
+  // Ancien nom (compat)
   @IsOptional()
   @IsEnum(PaymentMethod)
   method?: PaymentMethod;
 
+  // Dev/test: OrangeMoney mock (true=success, false=failure). Ignoré pour les autres méthodes.
   @IsOptional()
   @IsBoolean()
   simulateSuccess?: boolean;
