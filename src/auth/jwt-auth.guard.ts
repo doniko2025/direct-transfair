@@ -6,10 +6,12 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 
 import type { AuthUserPayload } from './types/auth-user-payload.type';
 import type { TenantContext } from '../tenants/tenant-context';
+import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
 
 type JwtPayloadLike = {
   sub?: string;
@@ -51,9 +53,21 @@ function extractToken(req: Request): string {
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private readonly jwt: JwtService) {}
+  constructor(
+    private readonly jwt: JwtService,
+    private readonly reflector: Reflector,
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(
+      IS_PUBLIC_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
+    if (isPublic) {
+      return true;
+    }
+
     const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     const token = extractToken(req);
@@ -71,18 +85,14 @@ export class JwtAuthGuard implements CanActivate {
 
       req.user = {
         id,
-        sub: id, // compat
+        sub: id,
         email: payload.email,
         role: payload.role,
         clientId,
       };
 
-      // -------------------------------------------------------
-      // ✅ Hybrid SaaS security: tenant header ↔ token isolation
-      // -------------------------------------------------------
       const tenantClientId = req.tenantContext?.clientId;
 
-      // On applique la vérification seulement si le tenant a été résolu (> 0)
       if (typeof tenantClientId === 'number' && tenantClientId > 0) {
         if (typeof clientId !== 'number') {
           throw new UnauthorizedException('Invalid token: missing clientId');
@@ -97,6 +107,5 @@ export class JwtAuthGuard implements CanActivate {
     } catch {
       throw new UnauthorizedException('Invalid token');
     }
-
   }
 }

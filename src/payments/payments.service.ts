@@ -37,8 +37,10 @@ export class PaymentsService {
         status: true,
         paymentMethod: true,
         provider: true,
+        providerRef: true,
         providerStatus: true,
         paidAt: true,
+        cancelledAt: true,
       },
     });
 
@@ -47,31 +49,33 @@ export class PaymentsService {
       throw new ForbiddenException('Transaction does not belong to this user');
     }
 
-    // -----------------------------
-    // Verrou statut + idempotence
-    // -----------------------------
+    // Terminal
     if (txLite.status === TransactionStatus.CANCELLED) {
-      throw new BadRequestException('Transaction annulée');
+      throw new BadRequestException('Paiement interdit: transaction CANCELLED');
     }
-
     if (txLite.status === TransactionStatus.PAID) {
-      // Idempotent: on renvoie l'état actuel
       return this.status(clientId, userId, txLite.id);
     }
 
-    if (
-      txLite.status !== TransactionStatus.PENDING &&
-      txLite.status !== TransactionStatus.VALIDATED
-    ) {
+    // ✅ Verrou B1: paiement uniquement si VALIDATED
+    if (txLite.status !== TransactionStatus.VALIDATED) {
       throw new BadRequestException(
-        `Paiement interdit: transaction status=${txLite.status}`,
+        `Paiement interdit: transaction status=${txLite.status} (attendu: VALIDATED)`,
       );
     }
 
-    // Compat : on accepte paymentMethod (nouveau) OU method (ancien)
+    // Compat (nouveau OU ancien)
     const method = dto.paymentMethod ?? dto.method;
-    if (!method) {
-      throw new BadRequestException('paymentMethod/method manquant');
+    if (!method) throw new BadRequestException('paymentMethod/method manquant');
+
+    // Idempotence: si déjà en attente sur le même provider avec providerRef, on renvoie l’état
+    if (
+      txLite.providerStatus === ProviderStatus.PENDING &&
+      txLite.providerRef &&
+      ((method === PaymentMethod.ORANGE_MONEY && txLite.provider === PaymentProvider.ORANGE_MONEY) ||
+        (method === PaymentMethod.SENDWAVE && txLite.provider === PaymentProvider.SENDWAVE))
+    ) {
+      return this.status(clientId, userId, txLite.id);
     }
 
     switch (method) {
@@ -90,7 +94,7 @@ export class PaymentsService {
           where: { id: txLite.id, clientId },
         });
 
-        return this.om.initiate(tx);
+        return this.om.initiate(tx, { simulateSuccess: dto.simulateSuccess });
       }
 
       case PaymentMethod.SENDWAVE: {
@@ -145,13 +149,13 @@ export class PaymentsService {
   }
 
   /**
-   * Paiement direct wallet (dev-friendly) :
-   * - update borné par (id, clientId) via updateMany + re-fetch
+   * Wallet (dev-friendly) :
+   * - Ne paie que si status=VALIDATED
    */
   private async handleWallet(clientId: number, id: string) {
     return this.prisma.$transaction(async (p) => {
       const upd = await p.transaction.updateMany({
-        where: { id, clientId },
+        where: { id, clientId, status: TransactionStatus.VALIDATED },
         data: {
           status: TransactionStatus.PAID,
           paidAt: new Date(),
@@ -164,7 +168,7 @@ export class PaymentsService {
       });
 
       if (upd.count !== 1) {
-        throw new NotFoundException('Transaction not found');
+        throw new BadRequestException('Paiement wallet interdit (transaction non VALIDATED ou introuvable)');
       }
 
       return p.transaction.findFirstOrThrow({
@@ -183,7 +187,9 @@ export class PaymentsService {
   }
 
   /**
-   * Marque le provider/method comme "en cours" avant l'appel externe.
+   * Prépare provider/method avant appel externe
+   * - borné à (id, clientId, status=VALIDATED)
+   * - reset providerRef pour éviter ambiguïté en cas de retry
    */
   private async markProviderPending(
     clientId: number,
@@ -192,16 +198,17 @@ export class PaymentsService {
     provider: PaymentProvider,
   ): Promise<void> {
     const upd = await this.prisma.transaction.updateMany({
-      where: { id, clientId },
+      where: { id, clientId, status: TransactionStatus.VALIDATED },
       data: {
         paymentMethod: method,
         provider,
         providerStatus: ProviderStatus.PENDING,
+        providerRef: null,
       },
     });
 
     if (upd.count !== 1) {
-      throw new NotFoundException('Transaction not found');
+      throw new BadRequestException('Paiement interdit (transaction non VALIDATED ou introuvable)');
     }
   }
 }

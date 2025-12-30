@@ -1,8 +1,13 @@
 //apps/backend/src/payments/sendwave.service.ts
-// apps/backend/src/payments/sendwave.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PaymentMethod, PaymentProvider, ProviderStatus, Transaction, TransactionStatus } from '@prisma/client';
+import {
+  PaymentMethod,
+  PaymentProvider,
+  ProviderStatus,
+  Transaction,
+  TransactionStatus,
+} from '@prisma/client';
 
 @Injectable()
 export class SendwaveService {
@@ -11,16 +16,21 @@ export class SendwaveService {
   async initiate(tx: Transaction) {
     const providerRef = 'SW_' + Math.floor(100000 + Math.random() * 900000);
 
-    await this.prisma.transaction.update({
-      where: { id: tx.id },
+    const upd = await this.prisma.transaction.updateMany({
+      where: {
+        id: tx.id,
+        clientId: tx.clientId,
+        status: TransactionStatus.VALIDATED, // ✅ ne jamais repasser à PENDING
+      },
       data: {
         paymentMethod: PaymentMethod.SENDWAVE,
         provider: PaymentProvider.SENDWAVE,
         providerRef,
         providerStatus: ProviderStatus.PENDING,
-        status: TransactionStatus.PENDING,
       },
     });
+
+    if (upd.count !== 1) throw new NotFoundException('Transaction introuvable ou non VALIDATED');
 
     return {
       status: 'WAITING_USER_PAYMENT',

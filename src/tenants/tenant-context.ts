@@ -2,8 +2,8 @@
 export type TenantMode = 'single-db' | 'multi-db';
 
 export interface TenantContext {
-  code: string; // DONIKO
-  clientId: number; // 1
-  databaseUrl: string; // DATABASE_URL actuelle
+  code: string; // ex: DONIKO
+  clientId: number; // ex: 1
+  databaseUrl: string; // ex: postgres://...
   mode: TenantMode;
 }

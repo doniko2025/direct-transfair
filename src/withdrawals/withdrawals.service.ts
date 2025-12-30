@@ -6,12 +6,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma, TransactionStatus, WithdrawalStatus } from '@prisma/client';
+
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateWithdrawalDto } from './dto/create-withdrawal.dto';
 import { UpdateWithdrawalStatusDto } from './dto/update-withdrawal-status.dto';
-import { WithdrawalStatus } from '@prisma/client';
 
-const TERMINAL_WITHDRAWAL: WithdrawalStatus[] = ['PAID', 'REJECTED'];
+const TERMINAL_WITHDRAWAL: WithdrawalStatus[] = [
+  WithdrawalStatus.PAID,
+  WithdrawalStatus.REJECTED,
+];
 
 function assertTransition(from: WithdrawalStatus, to: WithdrawalStatus) {
   if (from === to) return;
@@ -21,8 +25,8 @@ function assertTransition(from: WithdrawalStatus, to: WithdrawalStatus) {
   }
 
   const allowed: Record<WithdrawalStatus, WithdrawalStatus[]> = {
-    PENDING: ['APPROVED', 'REJECTED'],
-    APPROVED: ['PAID', 'REJECTED'],
+    PENDING: [WithdrawalStatus.APPROVED, WithdrawalStatus.REJECTED],
+    APPROVED: [WithdrawalStatus.PAID, WithdrawalStatus.REJECTED],
     PAID: [],
     REJECTED: [],
   };
@@ -39,13 +43,14 @@ export class WithdrawalsService {
   /**
    * USER — créer un retrait
    * Règle stricte: retrait autorisé uniquement si transaction PAID
+   * Anti double-retrait: unique constraint + gestion P2002 (atomique)
    */
   async create(clientId: number, userId: string, dto: CreateWithdrawalDto) {
+    const transactionId = String(dto.transactionId ?? '').trim();
+    if (!transactionId) throw new BadRequestException('transactionId manquant');
+
     const tx = await this.prisma.transaction.findFirst({
-      where: {
-        id: dto.transactionId,
-        clientId,
-      },
+      where: { id: transactionId, clientId },
       select: {
         id: true,
         senderId: true,
@@ -58,37 +63,41 @@ export class WithdrawalsService {
     if (tx.senderId !== userId) {
       throw new ForbiddenException('Transaction non appartenant à l’utilisateur');
     }
-    if (tx.status !== 'PAID') {
-      throw new BadRequestException(`Retrait interdit: transaction status=${tx.status} (attendu: PAID)`);
+    if (tx.status !== TransactionStatus.PAID) {
+      throw new BadRequestException(
+        `Retrait interdit: transaction status=${tx.status} (attendu: PAID)`,
+      );
     }
 
-    const exists = await this.prisma.withdrawal.findFirst({
-      where: { clientId, transactionId: tx.id },
-      select: { id: true },
-    });
-    if (exists) throw new ConflictException('Un retrait existe déjà pour cette transaction');
-
-    return this.prisma.withdrawal.create({
-      data: {
-        clientId,
-        transactionId: tx.id,
-        method: dto.method ?? tx.payoutMethod,
-        status: 'PENDING',
-      },
-      select: {
-        id: true,
-        status: true,
-        requestedAt: true,
-        processedAt: true,
-        processedById: true,
-        transactionId: true,
-        method: true,
-      },
-    });
+    try {
+      return await this.prisma.withdrawal.create({
+        data: {
+          clientId,
+          transactionId: tx.id,
+          method: dto.method ?? tx.payoutMethod,
+          status: WithdrawalStatus.PENDING,
+        },
+        select: {
+          id: true,
+          status: true,
+          requestedAt: true,
+          processedAt: true,
+          processedById: true,
+          transactionId: true,
+          method: true,
+        },
+      });
+    } catch (e: unknown) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        // unique constraint (transactionId)
+        throw new ConflictException('Un retrait existe déjà pour cette transaction');
+      }
+      throw e;
+    }
   }
 
   /**
-   * USER — mes retraits (via transaction.senderId)
+   * USER — mes retraits
    */
   async listMine(clientId: number, userId: string) {
     return this.prisma.withdrawal.findMany({
@@ -148,7 +157,8 @@ export class WithdrawalsService {
   }
 
   /**
-   * ADMIN — mise à jour du statut
+   * ADMIN — mise à jour statut retrait (transition stricte)
+   * + sécurité: impossible de PAID un retrait si la transaction n’est plus PAID
    */
   async adminUpdateStatus(
     clientId: number,
@@ -158,7 +168,11 @@ export class WithdrawalsService {
   ) {
     const w = await this.prisma.withdrawal.findFirst({
       where: { id: withdrawalId, clientId },
-      select: { id: true, status: true },
+      select: {
+        id: true,
+        status: true,
+        transaction: { select: { status: true } },
+      },
     });
 
     if (!w) throw new NotFoundException('Retrait introuvable');
@@ -168,8 +182,15 @@ export class WithdrawalsService {
 
     assertTransition(from, to);
 
+    if (to === WithdrawalStatus.PAID && w.transaction.status !== TransactionStatus.PAID) {
+      throw new BadRequestException('Paiement retrait interdit: la transaction n’est plus PAID');
+    }
+
     const now = new Date();
-    const shouldStamp = to === 'APPROVED' || to === 'PAID' || to === 'REJECTED';
+    const shouldStamp =
+      to === WithdrawalStatus.APPROVED ||
+      to === WithdrawalStatus.PAID ||
+      to === WithdrawalStatus.REJECTED;
 
     return this.prisma.withdrawal.update({
       where: { id: withdrawalId },
